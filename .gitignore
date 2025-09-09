@@ -1,3 +1,5 @@
 models
 /*.mp4
 .env
+/data/example_video_dataset/
+/merge_videos/

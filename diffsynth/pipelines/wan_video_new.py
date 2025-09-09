@@ -323,9 +323,10 @@ class WanVideoPipeline(BasePipeline):
         # Redirect model path
         if redirect_common_files:
             redirect_dict = {
-                "models_t5_umt5-xxl-enc-bf16.pth": "Wan-AI/Wan2.1-T2V-1.3B",
-                "Wan2.1_VAE.pth": "Wan-AI/Wan2.1-T2V-1.3B",
-                "models_clip_open-clip-xlm-roberta-large-vit-huge-14.pth": "Wan-AI/Wan2.1-I2V-14B-480P",
+                #"models_t5_umt5-xxl-enc-bf16.pth": "Wan-AI/Wan2.1-T2V-1.3B",
+                #"Wan2.1_VAE.pth": "Wan-AI/Wan2.1-T2V-1.3B",
+                #"models_clip_open-clip-xlm-roberta-large-vit-huge-14.pth": "Wan-AI/Wan2.1-I2V-14B-480P",
+                "Wan2.2_VAE.pth": "Wan-AI/Wan2.2-TI2V-5B",
             }
             for model_config in model_configs:
                 if model_config.origin_file_pattern is None or model_config.model_id is None:
@@ -367,6 +368,8 @@ class WanVideoPipeline(BasePipeline):
             pipe.width_division_factor = pipe.vae.upsampling_factor * 2
 
         # Initialize tokenizer
+        #set tokenzier config, skip download
+        tokenizer_config.skip_download = True
         tokenizer_config.download_if_necessary(use_usp=use_usp)
         pipe.prompter.fetch_models(pipe.text_encoder)
         pipe.prompter.fetch_tokenizer(tokenizer_config.path)

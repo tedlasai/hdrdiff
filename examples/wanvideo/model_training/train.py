@@ -1,8 +1,12 @@
 import torch, os, json
+import sys
+sys.path.append("/data2/saikiran.tedla/hdrvideo/diff")
+
 from diffsynth import load_state_dict
 from diffsynth.pipelines.wan_video_new import WanVideoPipeline, ModelConfig
 from diffsynth.trainers.utils import DiffusionTrainingModule, ModelLogger, launch_training_task, wan_parser
 from diffsynth.trainers.unified_dataset import UnifiedDataset
+
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
@@ -22,6 +26,10 @@ class WanTrainingModule(DiffusionTrainingModule):
         super().__init__()
         # Load models
         model_configs = self.parse_model_configs(model_paths, model_id_with_origin_paths, enable_fp8_training=False)
+        # Disable hub fetch — force local
+        for cfg in model_configs:
+            cfg.skip_download = True
+
         self.pipe = WanVideoPipeline.from_pretrained(torch_dtype=torch.bfloat16, device="cpu", model_configs=model_configs)
         
         # Training mode
@@ -69,6 +77,7 @@ class WanTrainingModule(DiffusionTrainingModule):
         for extra_input in self.extra_inputs:
             if extra_input == "input_image":
                 inputs_shared["input_image"] = data["video"][0]
+                print("USING INPUT IMAGE")
             elif extra_input == "end_image":
                 inputs_shared["end_image"] = data["video"][-1]
             elif extra_input == "reference_image" or extra_input == "vace_reference_image":
