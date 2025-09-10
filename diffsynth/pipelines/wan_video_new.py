@@ -555,7 +555,7 @@ class WanVideoUnit_InputVideoEmbedder(PipelineUnit):
 
     def process(self, pipe: WanVideoPipeline, input_video, noise, tiled, tile_size, tile_stride, vace_reference_image):
         if input_video is None:
-            return {"latents": noise}
+            return {"latents": noise} #when running inference there is no input video, so this happens
         pipe.load_models_to_device(["vae"])
         input_video = pipe.preprocess_video(input_video)
         input_latents = pipe.vae.encode(input_video, device=pipe.device, tiled=tiled, tile_size=tile_size, tile_stride=tile_stride).to(dtype=pipe.torch_dtype, device=pipe.device)
@@ -700,7 +700,7 @@ class WanVideoUnit_ImageEmbedderFused(PipelineUnit):
         pipe.load_models_to_device(self.onload_model_names)
         image = pipe.preprocess_image(input_image.resize((width, height))).transpose(0, 1)
         z = pipe.vae.encode([image], device=pipe.device, tiled=tiled, tile_size=tile_size, tile_stride=tile_stride)
-        latents[:, :, 0: 1] = z
+        latents[:, :, 0: 1] = z #replace the first frame latents with conditioning latents
         return {"latents": latents, "fuse_vae_embedding_in_latents": True, "first_frame_latents": z}
 
 

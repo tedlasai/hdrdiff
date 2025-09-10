@@ -31,6 +31,7 @@ class WanTrainingModule(DiffusionTrainingModule):
             cfg.skip_download = True
 
         self.pipe = WanVideoPipeline.from_pretrained(torch_dtype=torch.bfloat16, device="cpu", model_configs=model_configs)
+        self.pipe.dit.require_vae_embedding = False  # Enable image VAE embeddings
         
         # Training mode
         self.switch_pipe_to_training_mode(
@@ -77,7 +78,6 @@ class WanTrainingModule(DiffusionTrainingModule):
         for extra_input in self.extra_inputs:
             if extra_input == "input_image":
                 inputs_shared["input_image"] = data["video"][0]
-                print("USING INPUT IMAGE")
             elif extra_input == "end_image":
                 inputs_shared["end_image"] = data["video"][-1]
             elif extra_input == "reference_image" or extra_input == "vace_reference_image":
