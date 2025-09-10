@@ -58,7 +58,7 @@ class WanVideoPipeline(BasePipeline):
             WanVideoUnit_ImageEmbedderFused(),
             WanVideoUnit_FunControl(),
             WanVideoUnit_FunReference(),
-            WanVideoUnit_FunCameraControl(),
+            #WanVideoUnit_FunCameraControl(),
             WanVideoUnit_SpeedControl(),
             WanVideoUnit_VACE(),
             WanVideoUnit_UnifiedSequenceParallel(),
@@ -501,8 +501,11 @@ class WanVideoPipeline(BasePipeline):
 
             # Scheduler
             inputs_shared["latents"] = self.scheduler.step(noise_pred, self.scheduler.timesteps[progress_id], inputs_shared["latents"])
+
             if "first_frame_latents" in inputs_shared:
                 inputs_shared["latents"][:, :, 0:1] = inputs_shared["first_frame_latents"]
+                
+
         
         # VACE (TODO: remove it)
         if vace_reference_image is not None:
@@ -700,7 +703,7 @@ class WanVideoUnit_ImageEmbedderFused(PipelineUnit):
         pipe.load_models_to_device(self.onload_model_names)
         image = pipe.preprocess_image(input_image.resize((width, height))).transpose(0, 1)
         z = pipe.vae.encode([image], device=pipe.device, tiled=tiled, tile_size=tile_size, tile_stride=tile_stride)
-        latents[:, :, 0: 1] = z #replace the first frame latents with conditioning latents
+        latents[:, :, 0: 1] = z #replace the first noise latents with the clean first latents
         return {"latents": latents, "fuse_vae_embedding_in_latents": True, "first_frame_latents": z}
 
 
@@ -752,53 +755,53 @@ class WanVideoUnit_FunReference(PipelineUnit):
 
 
 
-class WanVideoUnit_FunCameraControl(PipelineUnit):
-    def __init__(self):
-        super().__init__(
-            input_params=("height", "width", "num_frames", "camera_control_direction", "camera_control_speed", "camera_control_origin", "latents", "input_image", "tiled", "tile_size", "tile_stride"),
-            onload_model_names=("vae",)
-        )
+# class WanVideoUnit_FunCameraControl(PipelineUnit):
+#     def __init__(self):
+#         super().__init__(
+#             input_params=("height", "width", "num_frames", "camera_control_direction", "camera_control_speed", "camera_control_origin", "latents", "input_image", "tiled", "tile_size", "tile_stride"),
+#             onload_model_names=("vae",)
+#         )
 
-    def process(self, pipe: WanVideoPipeline, height, width, num_frames, camera_control_direction, camera_control_speed, camera_control_origin, latents, input_image, tiled, tile_size, tile_stride):
-        if camera_control_direction is None:
-            return {}
-        pipe.load_models_to_device(self.onload_model_names)
-        camera_control_plucker_embedding = pipe.dit.control_adapter.process_camera_coordinates(
-            camera_control_direction, num_frames, height, width, camera_control_speed, camera_control_origin)
+#     def process(self, pipe: WanVideoPipeline, height, width, num_frames, camera_control_direction, camera_control_speed, camera_control_origin, latents, input_image, tiled, tile_size, tile_stride):
+#         if camera_control_direction is None:
+#             return {}
+#         pipe.load_models_to_device(self.onload_model_names)
+#         camera_control_plucker_embedding = pipe.dit.control_adapter.process_camera_coordinates(
+#             camera_control_direction, num_frames, height, width, camera_control_speed, camera_control_origin)
         
-        control_camera_video = camera_control_plucker_embedding[:num_frames].permute([3, 0, 1, 2]).unsqueeze(0)
-        control_camera_latents = torch.concat(
-            [
-                torch.repeat_interleave(control_camera_video[:, :, 0:1], repeats=4, dim=2),
-                control_camera_video[:, :, 1:]
-            ], dim=2
-        ).transpose(1, 2)
-        b, f, c, h, w = control_camera_latents.shape
-        control_camera_latents = control_camera_latents.contiguous().view(b, f // 4, 4, c, h, w).transpose(2, 3)
-        control_camera_latents = control_camera_latents.contiguous().view(b, f // 4, c * 4, h, w).transpose(1, 2)
-        control_camera_latents_input = control_camera_latents.to(device=pipe.device, dtype=pipe.torch_dtype)
+#         control_camera_video = camera_control_plucker_embedding[:num_frames].permute([3, 0, 1, 2]).unsqueeze(0)
+#         control_camera_latents = torch.concat(
+#             [
+#                 torch.repeat_interleave(control_camera_video[:, :, 0:1], repeats=4, dim=2),
+#                 control_camera_video[:, :, 1:]
+#             ], dim=2
+#         ).transpose(1, 2)
+#         b, f, c, h, w = control_camera_latents.shape
+#         control_camera_latents = control_camera_latents.contiguous().view(b, f // 4, 4, c, h, w).transpose(2, 3)
+#         control_camera_latents = control_camera_latents.contiguous().view(b, f // 4, c * 4, h, w).transpose(1, 2)
+#         control_camera_latents_input = control_camera_latents.to(device=pipe.device, dtype=pipe.torch_dtype)
         
-        input_image = input_image.resize((width, height))
-        input_latents = pipe.preprocess_video([input_image])
-        input_latents = pipe.vae.encode(input_latents, device=pipe.device)
-        y = torch.zeros_like(latents).to(pipe.device)
-        y[:, :, :1] = input_latents
-        y = y.to(dtype=pipe.torch_dtype, device=pipe.device)
+#         input_image = input_image.resize((width, height))
+#         input_latents = pipe.preprocess_video([input_image])
+#         input_latents = pipe.vae.encode(input_latents, device=pipe.device)
+#         y = torch.zeros_like(latents).to(pipe.device)
+#         y[:, :, :1] = input_latents
+#         y = y.to(dtype=pipe.torch_dtype, device=pipe.device)
 
-        if y.shape[1] != pipe.dit.in_dim - latents.shape[1]:
-            image = pipe.preprocess_image(input_image.resize((width, height))).to(pipe.device)
-            vae_input = torch.concat([image.transpose(0, 1), torch.zeros(3, num_frames-1, height, width).to(image.device)], dim=1)
-            y = pipe.vae.encode([vae_input.to(dtype=pipe.torch_dtype, device=pipe.device)], device=pipe.device, tiled=tiled, tile_size=tile_size, tile_stride=tile_stride)[0]
-            y = y.to(dtype=pipe.torch_dtype, device=pipe.device)
-            msk = torch.ones(1, num_frames, height//8, width//8, device=pipe.device)
-            msk[:, 1:] = 0
-            msk = torch.concat([torch.repeat_interleave(msk[:, 0:1], repeats=4, dim=1), msk[:, 1:]], dim=1)
-            msk = msk.view(1, msk.shape[1] // 4, 4, height//8, width//8)
-            msk = msk.transpose(1, 2)[0]
-            y = torch.cat([msk,y])
-            y = y.unsqueeze(0)
-            y = y.to(dtype=pipe.torch_dtype, device=pipe.device)
-        return {"control_camera_latents_input": control_camera_latents_input, "y": y}
+#         if y.shape[1] != pipe.dit.in_dim - latents.shape[1]:
+#             image = pipe.preprocess_image(input_image.resize((width, height))).to(pipe.device)
+#             vae_input = torch.concat([image.transpose(0, 1), torch.zeros(3, num_frames-1, height, width).to(image.device)], dim=1)
+#             y = pipe.vae.encode([vae_input.to(dtype=pipe.torch_dtype, device=pipe.device)], device=pipe.device, tiled=tiled, tile_size=tile_size, tile_stride=tile_stride)[0]
+#             y = y.to(dtype=pipe.torch_dtype, device=pipe.device)
+#             msk = torch.ones(1, num_frames, height//8, width//8, device=pipe.device)
+#             msk[:, 1:] = 0
+#             msk = torch.concat([torch.repeat_interleave(msk[:, 0:1], repeats=4, dim=1), msk[:, 1:]], dim=1)
+#             msk = msk.view(1, msk.shape[1] // 4, 4, height//8, width//8)
+#             msk = msk.transpose(1, 2)[0]
+#             y = torch.cat([msk,y])
+#             y = y.unsqueeze(0)
+#             y = y.to(dtype=pipe.torch_dtype, device=pipe.device)
+#         return {"control_camera_latents_input": control_camera_latents_input, "y": y}
 
 
 
