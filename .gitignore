@@ -3,3 +3,4 @@ models
 .env
 /data/example_video_dataset/
 /merge_videos/
+/data/stuttgart/

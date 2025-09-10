@@ -70,7 +70,6 @@ class BasePipeline(torch.nn.Module):
         # Transform a list of PIL.Image to torch.Tensor
         video = [self.preprocess_image(image, torch_dtype=torch_dtype, device=device, min_value=min_value, max_value=max_value) for image in video]
         video = torch.stack(video, dim=pattern.index("T") // 2)
-        print("VIDEO SHAPE")
         return video
 
 
