@@ -1,5 +1,7 @@
-import torch, os, json
+import torch, os
 import sys
+import yaml
+from pathlib import Path
 
 sys.path.append("/data2/saikiran.tedla/hdrvideo/diff")
 
@@ -105,9 +107,56 @@ class WanTrainingModule(DiffusionTrainingModule):
         return loss
 
 
+def load_yaml_config(args, config_path):
+    with open(config_path, "r") as f:
+        config_args = yaml.safe_load(f) or {}
+
+    for k, v in config_args.items():
+        setattr(args, k, v)   # always set, no checks
+
+    return args
+
+#[\"/data2/saikiran.tedla/hdrvideo/diff/models/train/Wan2.2-TI2V-5B_full/epoch-0.safetensors\"]"
+def convert_strlist_to_jsonlist(strlist):
+    if strlist is None:
+        return None
+    import json
+    # strlist is already a list → just dump it to JSON
+    return json.dumps(strlist)
+    
+
+
+def set_load_paths(args):
+    if args.model_paths is not None:
+        return args
+    else:
+        checkpoint_dir = Path(args.output_path) / "checkpoints"
+        #find the latest checkpoint
+        if checkpoint_dir.exists(): #use efa
+            print("Looking for checkpoints in:", checkpoint_dir)
+            checkpoint_files = list(checkpoint_dir.glob("epoch-*.safetensors"))
+            if len(checkpoint_files) > 0:
+                latest_checkpoint = max(checkpoint_files, key=os.path.getctime)
+                latest_checkpoint = Path(latest_checkpoint)  # ensure it's a Path object
+                args.model_paths = convert_strlist_to_jsonlist([str(latest_checkpoint)])
+                print(f"Resuming from checkpoint: {args.model_paths}")
+
+                epochs_done = int(latest_checkpoint.stem.split("-")[1]) + 1
+                args.epochs_done = epochs_done
+                
+                return args
+        else: #use default weights (training from scratch)
+            default_model_id_with_origin_paths = ",Wan-AI/Wan2.2-TI2V-5B:diffusion_pytorch_model*.safetensors"
+            args.model_id_with_origin_paths += default_model_id_with_origin_paths
+            print("No checkpoints found, training from scratch.")
+            return args
+
 if __name__ == "__main__":
     parser = wan_parser()
     args = parser.parse_args()
+    args = load_yaml_config(args, args.config)
+    args = set_load_paths(args)
+
     dataset = StuttgartDataset(
         base_path=args.dataset_base_path,
         repeat=args.dataset_repeat,
@@ -137,7 +186,7 @@ if __name__ == "__main__":
         min_timestep_boundary=args.min_timestep_boundary,
     )
     model_logger = ModelLogger(
-        args.output_path,
+        Path(args.output_path) / "checkpoints",
         remove_prefix_in_ckpt=args.remove_prefix_in_ckpt
     )
     launch_training_task(dataset, model, model_logger, args=args)

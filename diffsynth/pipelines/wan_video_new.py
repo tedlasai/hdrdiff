@@ -448,7 +448,7 @@ class WanVideoPipeline(BasePipeline):
         # Decode
         self.load_models_to_device(['vae'])
         video = self.vae.decode(inputs_shared["latents"], device=self.device, tiled=tiled, tile_size=tile_size, tile_stride=tile_stride)
-        video = self.vae_output_to_video(video)
+        #video = self.vae_output_to_video(video)
         self.load_models_to_device([])
 
         return video

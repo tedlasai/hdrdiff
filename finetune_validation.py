@@ -44,7 +44,7 @@ pipe = WanVideoPipeline.from_pretrained(
         ModelConfig(model_id="Wan-AI/Wan2.2-TI2V-5B", origin_file_pattern="Wan2.2_VAE.pth", offload_device="cpu", skip_download=True),
     ],
 )
-state_dict = load_state_dict("/data2/saikiran.tedla/hdrvideo/diff/models/train/Wan2.2-TI2V-5B_full/epoch-1.safetensors")
+state_dict = load_state_dict("/data2/saikiran.tedla/hdrvideo/diff/models/train/Wan2.2-TI2V-5B_full/epoch-0.safetensors")
 pipe.dit.load_state_dict(state_dict)
 pipe.enable_vram_management()
 
@@ -56,4 +56,5 @@ video = pipe(
     seed=1, tiled=False,
     cfg_scale=1.0
 )
+
 save_video(video, "video_Wan2.2-TI2V-5B.mp4", fps=15, quality=5)
