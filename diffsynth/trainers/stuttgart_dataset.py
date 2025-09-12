@@ -203,6 +203,7 @@ def next_paths(path: str, t: int, *, same_suffix: bool = True, include_self: boo
 
     return [str(f) for f in result]
 
+
 def make_exposure_brackets(hdr_paths, exposures=(-5, 0, 5)):
     """
     Given a list of HDR image paths, generate exposure-bracketed LDR images.
@@ -216,9 +217,11 @@ def make_exposure_brackets(hdr_paths, exposures=(-5, 0, 5)):
                                 (same order as exposures).
     """
     all_brackets = []
+    hdr_images = []
     for hdr_path in hdr_paths:
         # Read HDR as float32, convert BGR -> RGB
         hdr_in = cv2.imread(hdr_path, cv2.IMREAD_ANYDEPTH | cv2.IMREAD_COLOR)[:, :, ::-1]
+        hdr_images.append(hdr_in)
 
         ldr_images = []
         for ev in exposures:
@@ -229,10 +232,11 @@ def make_exposure_brackets(hdr_paths, exposures=(-5, 0, 5)):
             ldr_images.append(ldr)
 
         all_brackets.append(ldr_images)
+    hdr_images = np.array(hdr_images)  # shape (N, H, W, 3)
     all_brackets = np.array(all_brackets)  # shape (N, len(exposures), H, W, 3)
     all_brackets = all_brackets.transpose(1,0,2,3,4)  # shape (len(exposures), N, H, W, 3)
 
-    return all_brackets
+    return hdr_images, all_brackets
 
 class LoadHDRVideo(DataProcessingOperator):
     def __init__(self, num_frames=49, time_division_factor=4, time_division_remainder=1, frame_processor=lambda x: x):
@@ -257,7 +261,8 @@ class LoadHDRVideo(DataProcessingOperator):
         num_hdr_frames = (self.num_frames - 1) // 3
         hdr_paths = next_paths(data, num_hdr_frames, same_suffix=True, include_self=True)
  
-        frames = make_exposure_brackets(hdr_paths, exposures=(0,-4,4))
+        hdr_frames, frames = make_exposure_brackets(hdr_paths, exposures=(0,-4,4))
+
         frames = frames.reshape(-1, *frames.shape[2:])  # shape (num_frames, H, W, 3)
         #repeat first frame in the begining
         frames = np.concatenate([frames[0:1], frames], axis=0)
@@ -268,7 +273,7 @@ class LoadHDRVideo(DataProcessingOperator):
             frame = self.frame_processor(frame)
             pil_frames.append(frame)
             
-        return pil_frames
+        return hdr_frames, pil_frames
 
 
 class SequencialProcess(DataProcessingOperator):
@@ -361,6 +366,7 @@ class StuttgartDataset(torch.utils.data.Dataset):
         repeat=1,
         main_data_operator=lambda x: x,
         special_operator_map=None,
+        mode = "brackets"
     ):
         self.base_path = base_path
         self.repeat = repeat
@@ -368,23 +374,23 @@ class StuttgartDataset(torch.utils.data.Dataset):
         self.main_data_operator = main_data_operator
         self.cached_data_operator = LoadTorchPickle()
         self.special_operator_map = {} if special_operator_map is None else special_operator_map
+        self.mode = mode
         self.data = []
         self.cached_data = {}
         self.load_from_cache = False
         self.load_data_from_path()
+        
 
     def load_data_from_path(self):
         files = sorted(os.listdir(self.base_path))
-        files = files[:-17] #I need at least 16 HDR frames to build a video 
-        dict_sample = {"prompt": "", "video": files[0]}
+        files = files[:-17] #I need at least 16 HDR frames to build a video
         self.data = [
             {
                 "prompt": "", 
-                "video": files[i], 
+                "video": files[i],
             }
             for i in range(len(files))
         ]
-
 
     @staticmethod
     def default_image_operator(
@@ -425,10 +431,12 @@ class StuttgartDataset(torch.utils.data.Dataset):
             data = self.data[data_id % len(self.data)].copy()
             for key in self.data_file_keys:
                 if key in data:
-                    if key in self.special_operator_map:
+                    if self.mode == "hdr_and_brackets" and key == "video":
+                       data["hdr_video"], data[key] = self.main_data_operator(data[key])
+                    elif key in self.special_operator_map:
                         data[key] = self.special_operator_map[key]
                     elif key in self.data_file_keys:
-                        data[key] = self.main_data_operator(data[key])
+                        _, data[key] = self.main_data_operator(data[key])
             self.cached_data[data_id % len(self.data)] = data
         return data
 
@@ -446,3 +454,4 @@ class StuttgartDataset(torch.utils.data.Dataset):
             if data1[k] != data2[k]:
                 return False
         return True
+    

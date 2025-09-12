@@ -1,5 +1,5 @@
-name: "firstweek"
-output_path: "./models/train/firstweek"
+name: "firstweek1e4"
+output_path: "./models/train/firstweek1e4"
 dataset_base_path: "/data2/saikiran.tedla/hdrvideo/diff/data/stuttgart/carousel_fireworks_02" # Base path of the dataset
 dataset_metadata_path: null
 max_pixels: 921600
@@ -10,7 +10,7 @@ data_file_keys: "image,video"
 dataset_repeat: 60
 model_paths: null #"[\"/data2/saikiran.tedla/hdrvideo/diff/models/train/Wan2.2-TI2V-5B_full/epoch-0.safetensors\"]" # Paths to load models. In JSON format.
 model_id_with_origin_paths: "Wan-AI/Wan2.2-TI2V-5B:models_t5_umt5-xxl-enc-bf16.pth,Wan-AI/Wan2.2-TI2V-5B:Wan2.2_VAE.pth"
-learning_rate: 0.00001
+learning_rate: 0.0001
 num_epochs: 50
 remove_prefix_in_ckpt: "pipe.dit."
 trainable_models: "dit"
@@ -20,7 +20,7 @@ lora_rank: 32
 lora_checkpoint: null
 extra_inputs: "condition_video"
 use_gradient_checkpointing_offload: false
-gradient_accumulation_steps: 1
+gradient_accumulation_steps: 4
 max_timestep_boundary: 1.0
 min_timestep_boundary: 0.0
 find_unused_parameters: false

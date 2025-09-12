@@ -499,6 +499,15 @@ class ModelLogger:
             path = os.path.join(self.output_path, f"epoch-{epoch_id}.safetensors")
             accelerator.save(state_dict, path, safe_serialization=True)
 
+            # keep only last 2 checkpoints
+            files = sorted(
+                [f for f in os.listdir(self.output_path) if f.startswith("epoch-")],
+                key=lambda x: int(x.split("-")[1].split(".")[0])
+            )
+            for f in files[:-2]:
+                os.remove(os.path.join(self.output_path, f))
+                
+
 
     def on_training_end(self, accelerator, model, save_steps=None):
         if save_steps is not None and self.num_steps % save_steps != 0:
@@ -560,6 +569,8 @@ def launch_training_task(
                 optimizer.step()
                 model_logger.on_step_end(accelerator, model, save_steps)
                 scheduler.step()
+
+                #model.pipe() -> this is hwo I need to access it (go to debug mode and try stuff tomorrow)
         if save_steps is None:
             model_logger.on_epoch_end(accelerator, model, epoch_id)
     model_logger.on_training_end(accelerator, model, save_steps)

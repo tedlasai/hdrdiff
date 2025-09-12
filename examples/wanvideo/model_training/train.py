@@ -127,29 +127,32 @@ def convert_strlist_to_jsonlist(strlist):
 
 
 def set_load_paths(args):
-    if args.model_paths is not None:
-        return args
-    else:
+    got_checkpoint = False
+    if args.model_paths is None:
         checkpoint_dir = Path(args.output_path) / "checkpoints"
         #find the latest checkpoint
+        num_checkpoint_files = 0
         if checkpoint_dir.exists(): #use efa
             print("Looking for checkpoints in:", checkpoint_dir)
             checkpoint_files = list(checkpoint_dir.glob("epoch-*.safetensors"))
-            if len(checkpoint_files) > 0:
+            num_checkpoint_files = len(checkpoint_files)
+            if num_checkpoint_files > 0:
                 latest_checkpoint = max(checkpoint_files, key=os.path.getctime)
                 latest_checkpoint = Path(latest_checkpoint)  # ensure it's a Path object
                 args.model_paths = convert_strlist_to_jsonlist([str(latest_checkpoint)])
                 print(f"Resuming from checkpoint: {args.model_paths}")
-
                 epochs_done = int(latest_checkpoint.stem.split("-")[1]) + 1
                 args.epochs_done = epochs_done
-                
-                return args
-        else: #use default weights (training from scratch)
+                got_checkpoint = True
+       
+        if not got_checkpoint:
             default_model_id_with_origin_paths = ",Wan-AI/Wan2.2-TI2V-5B:diffusion_pytorch_model*.safetensors"
             args.model_id_with_origin_paths += default_model_id_with_origin_paths
             print("No checkpoints found, training from scratch.")
-            return args
+            args.epochs_done = 0
+        return args
+    else:
+        return args
 
 if __name__ == "__main__":
     parser = wan_parser()
