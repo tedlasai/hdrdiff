@@ -6,3 +6,4 @@ models
 /data/stuttgart/
 /my_hdr_frames/
 /encoder_test/
+stuttgart_output.npy
