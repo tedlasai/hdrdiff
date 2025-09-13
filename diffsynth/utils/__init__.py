@@ -59,7 +59,10 @@ class BasePipeline(torch.nn.Module):
 
     def preprocess_image(self, image, torch_dtype=None, device=None, pattern="B C H W", min_value=-1, max_value=1):
         # Transform a PIL.Image to torch.Tensor
-        image = torch.Tensor(np.array(image, dtype=np.float32))
+        if isinstance(image, Image.Image):
+            image = torch.Tensor(np.array(image, dtype=np.float32))
+        elif isinstance(image, np.ndarray):
+            image = torch.Tensor(image.astype(np.float32))
         image = image.to(dtype=torch_dtype or self.torch_dtype, device=device or self.device)
         image = image * ((max_value - min_value) / 255) + min_value
         image = repeat(image, f"H W C -> {pattern}", **({"B": 1} if "B" in pattern else {}))
@@ -68,8 +71,14 @@ class BasePipeline(torch.nn.Module):
 
     def preprocess_video(self, video, torch_dtype=None, device=None, pattern="B C T H W", min_value=-1, max_value=1):
         # Transform a list of PIL.Image to torch.Tensor
-        video = [self.preprocess_image(image, torch_dtype=torch_dtype, device=device, min_value=min_value, max_value=max_value) for image in video]
-        video = torch.stack(video, dim=pattern.index("T") // 2)
+        #if video is a list of PIL.Image
+        if isinstance(video, list):
+            video = [self.preprocess_image(image, torch_dtype=torch_dtype, device=device, min_value=min_value, max_value=max_value) for image in video]
+            video = torch.stack(video, dim=pattern.index("T") // 2)
+        elif isinstance(video, np.ndarray):
+            for i in range(video.shape[0]):
+                video[i] = self.preprocess_image(video[i], torch_dtype=torch_dtype, device=device, min_value=min_value, max_value=max_value)
+            video = torch.stack(video, dim=pattern.index("T") // 2)
         return video
 
 

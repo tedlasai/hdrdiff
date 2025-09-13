@@ -483,6 +483,7 @@ class WanVideoUnit_InputVideoEmbedder(PipelineUnit):
             onload_model_names=("vae",)
         )
 
+    #assume input_video
     def process(self, pipe: WanVideoPipeline, input_video, noise, tiled, tile_size, tile_stride, vace_reference_image):
         if input_video is None:
             return {"latents": noise} #when running inference there is no input video, so this happens
